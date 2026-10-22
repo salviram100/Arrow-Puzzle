@@ -1,0 +1,6 @@
+{
+  "name": "Arrow Puzzle",
+  "description": "Complex arrow puzzle game by Velocity Games with 100 progressive stages, guest login, custom stage editor, and 3-star rating victories.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
