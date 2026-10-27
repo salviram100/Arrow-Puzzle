@@ -9,6 +9,7 @@ Everything runs through `docker-compose.base44.yml` (development setup, source b
 
 ```bash
 docker compose -f docker-compose.base44.yml up -d          # android + shots + preview
+docker compose -f docker-compose.base44.yml restart shots  # re-render screens after a UI change
 docker compose -f docker-compose.base44.yml exec android gradle :app:assembleDebug
 docker compose -f docker-compose.base44.yml exec android gradle :app:testDebugUnitTest
 ```
@@ -16,8 +17,10 @@ docker compose -f docker-compose.base44.yml exec android gradle :app:testDebugUn
 - `android` — dev container: JDK 21 + Android SDK (platform 36 / 36.1, build-tools 36.0.0) +
   Gradle. Source is bind-mounted at `/workspace`, so no image rebuild is needed for code changes.
   Gradle and Android caches live in the named volumes `gradle-cache` / `android-cache`.
-- `shots` — one-shot job: renders the real Compose screens to PNG (Robolectric + Roborazzi via
-  `PreviewScreenshotTest`), builds the debug APK, and copies both into `.base44/preview/`.
+- `shots` — worker: on startup it renders the real Compose screens to PNG (Robolectric + Roborazzi
+  via `PreviewScreenshotTest`), builds the debug APK, copies both into `.base44/preview/`, then
+  idles so it reports healthy. Re-render after app changes with
+  `docker compose -f docker-compose.base44.yml restart shots` (artifacts refresh in ~1 min warm).
 - `preview` — nginx on host port 3000 serving `.base44/preview/`: a gallery of the rendered
   screens plus the APK download. This is the only thing a browser can show of this app; the game
   UI itself needs a device or emulator (no KVM in the sandbox, so no emulator here).

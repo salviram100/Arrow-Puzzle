@@ -84,8 +84,20 @@ services:
           :app:testDebugUnitTest --tests "*PreviewScreenshotTest*" -Proborazzi.test.record=true
         gradle --no-daemon -Dorg.gradle.jvmargs=-Xmx3g :app:assembleDebug
         cp app/build/outputs/apk/debug/app-debug.apk "$$PREVIEW_APK_DIR/arrow-puzzle-debug.apk"
+        touch /tmp/preview-ready
         echo "preview artifacts ready"
-    restart: "no"
+        # Stay up afterwards so the service reports a healthy state, and re-render
+        # with `docker compose -f docker-compose.base44.yml restart shots`.
+        exec sleep infinity
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -f /tmp/preview-ready && test -f "$$PREVIEW_APK_DIR/arrow-puzzle-debug.apk" && test -f "$$PREVIEW_SHOTS_DIR/03-lobby.png" || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    restart: on-failure
     labels:
       base44.project: "Arrow Puzzle"
       base44.kind: "worker"
