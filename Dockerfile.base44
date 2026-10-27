@@ -1,0 +1,40 @@
+# Base44 development image for this project.
+# This is a NATIVE ANDROID app (Kotlin + Jetpack Compose), so there is no web
+# dev server to run: the image provides the JDK + Android SDK used to build the
+# APK, run the unit/Robolectric tests and render the preview screenshots.
+FROM eclipse-temurin:21-jdk
+
+ENV ANDROID_HOME=/opt/android-sdk \
+    ANDROID_SDK_ROOT=/opt/android-sdk
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl unzip ca-certificates git \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p "$ANDROID_HOME/cmdline-tools" \
+ && cd "$ANDROID_HOME/cmdline-tools" \
+ && curl -fsSL -o tools.zip https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip \
+ && unzip -q tools.zip \
+ && mv cmdline-tools latest \
+ && rm tools.zip
+
+ENV PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
+
+RUN yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
+# compileSdk 36 (minor API level 1) as declared in app/build.gradle.kts.
+RUN sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" > /dev/null \
+ && (sdkmanager --install "platforms;android-36.1" > /dev/null || true)
+
+# The repository has gradle/wrapper/gradle-wrapper.properties but no gradlew
+# script / wrapper jar, so install the Gradle distribution the project pins.
+ARG GRADLE_VERSION=9.3.1
+RUN curl -fsSL -o /tmp/gradle.zip "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+ && unzip -q /tmp/gradle.zip -d /opt \
+ && mv "/opt/gradle-${GRADLE_VERSION}" /opt/gradle \
+ && rm /tmp/gradle.zip \
+ && ln -sf /opt/gradle/bin/gradle /usr/local/bin/gradle
+
+WORKDIR /workspace
+
+CMD ["sleep", "infinity"]

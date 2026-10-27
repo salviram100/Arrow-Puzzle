@@ -16,3 +16,7 @@
 local.properties
 .env
 debug.keystore
+
+# Base44 sandbox preview artifacts (generated)
+.base44/preview/shots/
+.base44/preview/apk/
