@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Arrow Puzzle — Android build</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 32px 20px;
+        background: radial-gradient(circle at 20% 0%, #1d2745 0%, #0b0f1a 55%);
+        color: #e8ecf8;
+        font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main { width: 100%; max-width: 640px; }
+      h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -0.02em; }
+      .sub { margin: 0 0 24px; color: #8e9bbd; font-size: 13px; }
+      .card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 20px;
+      }
+      .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.08);
+        color: #c9d3ea;
+      }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: #9aa6c4; }
+      .building .dot { background: #f5b942; animation: pulse 1.2s ease-in-out infinite; }
+      .ready .dot { background: #45d39a; }
+      .failed .dot { background: #ff6b6b; }
+      @keyframes pulse { 50% { opacity: 0.25; } }
+      .meta { color: #8e9bbd; font-size: 12.5px; margin-top: 14px; }
+      a.button {
+        display: inline-block;
+        margin-top: 18px;
+        padding: 11px 18px;
+        border-radius: 10px;
+        background: #4f7cff;
+        color: #fff;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      a.button[hidden] { display: none; }
+      pre {
+        margin: 16px 0 0;
+        max-height: 320px;
+        overflow: auto;
+        padding: 14px;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        color: #cfd7ea;
+        font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        white-space: pre-wrap;
+      }
+      pre[hidden] { display: none; }
+      .hint { margin-top: 22px; color: #7480a0; font-size: 12.5px; }
+      code { color: #a9b8de; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Arrow Puzzle</h1>
+      <p class="sub">Native Android app — the sandbox builds the debug APK from source.</p>
+
+      <div class="card">
+        <div class="row">
+          <span id="badge" class="badge building"><span class="dot"></span><span id="label">Starting build…</span></span>
+          <span class="meta" id="times" style="margin: 0"></span>
+        </div>
+        <a id="download" class="button" href="app-debug.apk" download hidden>Download debug APK</a>
+        <pre id="log" hidden></pre>
+        <p class="hint">
+          Install on a device or emulator with
+          <code>adb install -r app-debug.apk</code>. Build output is also at
+          <code>app/build/outputs/apk/debug/</code>.
+        </p>
+      </div>
+    </main>
+
+    <script>
+      const badge = document.getElementById("badge");
+      const label = document.getElementById("label");
+      const times = document.getElementById("times");
+      const download = document.getElementById("download");
+      const log = document.getElementById("log");
+      const text = { building: "Building…", ready: "Build ready", failed: "Build failed" };
+
+      async function refresh() {
+        let status;
+        try {
+          const res = await fetch("status.json?t=" + Date.now(), { cache: "no-store" });
+          status = await res.json();
+        } catch (e) {
+          label.textContent = "Waiting for the first build…";
+          return;
+        }
+        badge.className = "badge " + status.state;
+        label.textContent = text[status.state] || status.state;
+        times.textContent = status.finishedAt
+          ? "build #" + status.build + " · finished " + new Date(status.finishedAt).toLocaleTimeString()
+          : "build #" + status.build + " started " + new Date(status.startedAt).toLocaleTimeString();
+        download.hidden = status.state !== "ready";
+        download.href = "app-debug.apk?v=" + status.build;
+        if (status.state === "failed") {
+          const res = await fetch("build.log?t=" + Date.now(), { cache: "no-store" });
+          log.textContent = (await res.text()).split("\n").slice(-60).join("\n");
+          log.hidden = false;
+        } else {
+          log.hidden = true;
+        }
+      }
+
+      refresh();
+      setInterval(refresh, 3000);
+    </script>
+  </body>
+</html>

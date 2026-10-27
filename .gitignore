@@ -16,3 +16,9 @@
 local.properties
 .env
 debug.keystore
+
+# Base44 sandbox build output served by the preview web service
+.base44/preview/status.json
+.base44/preview/build.log
+.base44/preview/app-debug.apk
+.base44/preview/app-debug.apk.tmp

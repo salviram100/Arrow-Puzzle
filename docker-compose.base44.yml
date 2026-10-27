@@ -1,0 +1,59 @@
+# Base44 sandbox stack for Arrow Puzzle.
+#
+# The project is a native Android / Jetpack Compose app: there is no web server
+# to run. Instead the `android` service builds the debug APK from the bind-
+# mounted source (rebuilding on every source change) and the `web` service
+# serves that build — status page + downloadable APK — on host port 3000.
+#
+#   docker compose -f docker-compose.base44.yml up -d --build
+name: arrow-puzzle
+
+services:
+  android:
+    build:
+      context: .
+      dockerfile: docker/android.Dockerfile
+    working_dir: /workspace
+    volumes:
+      # Source is mounted, never baked into the image, so edits rebuild live.
+      - ./:/workspace
+      - gradle-home:/root/.gradle
+      - ./.base44/preview:/preview
+    environment:
+      - REPO_DIR=/workspace
+      - PREVIEW_DIR=/preview
+    command: ["bash", "/workspace/.base44/scripts/build-watch.sh"]
+    restart: on-failure
+    labels:
+      base44.project: "Arrow Puzzle"
+      base44.kind: "worker"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /preview/status.json && pgrep -f build-watch.sh > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 240s
+
+  web:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./.base44/preview:/usr/share/nginx/html:ro
+    depends_on:
+      android:
+        condition: service_started
+    restart: on-failure
+    labels:
+      base44.project: "Arrow Puzzle"
+      base44.kind: "web"
+      base44.port: "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  gradle-home:
