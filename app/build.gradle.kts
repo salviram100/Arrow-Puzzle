@@ -23,6 +23,12 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  // ./debug.keystore is gitignored and therefore missing from a clean checkout,
+  // which used to fail the build in :app:validateSigningDebug. Fall back to AGP's
+  // built-in "debug" signing config (it generates ~/.android/debug.keystore) when
+  // the repository keystore is not present.
+  val repoDebugKeystore = file("${rootDir}/debug.keystore")
+
   signingConfigs {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
@@ -32,10 +38,12 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+      if (repoDebugKeystore.exists()) {
+        storeFile = repoDebugKeystore
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
   }
 
@@ -46,7 +54,9 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug {
+      signingConfig = signingConfigs.getByName(if (repoDebugKeystore.exists()) "debugConfig" else "debug")
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11

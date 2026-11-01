@@ -1,0 +1,116 @@
+# Base44 sandbox environment for "Arrow Puzzle".
+#
+# The project is a native Android app (Kotlin / Jetpack Compose), so there is no
+# web entry point of its own. This file provides:
+#
+#   android  - toolchain container (JDK 21 + Gradle + Android SDK) with the repo
+#              bind-mounted at /workspace; run gradle here. Source edits are
+#              compiled by the next gradle invocation, no image rebuild needed.
+#   shots    - builds the debug APK and renders the app's real Compose screens to
+#              PNG (Robolectric + Roborazzi) into .base44/preview/
+#   preview  - static page on host port 3000 showing those rendered screens and
+#              offering the debug APK for download
+#
+# There is no /dev/kvm in the sandbox, so no emulator: the APK is installed on a
+# phone or a local emulator by the user.
+name: arrow-puzzle
+
+services:
+  android:
+    build:
+      context: .
+      dockerfile: .base44/Dockerfile.android
+    working_dir: /workspace
+    restart: on-failure
+    environment:
+      - BASE44_PREVIEW_MODE
+      - GRADLE_USER_HOME=/root/.gradle
+      - ANDROID_HOME=/opt/android-sdk
+      - ANDROID_SDK_ROOT=/opt/android-sdk
+      - PREVIEW_SHOTS_DIR=/workspace/.base44/preview/shots
+      - PREVIEW_APK_DIR=/workspace/.base44/preview/apk
+    volumes:
+      - .:/workspace
+      - gradle-cache:/root/.gradle
+      - android-cache:/root/.android
+    command: ["sh", "-c", "exec sleep infinity"]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - java -version >/dev/null 2>&1 && gradle --version >/dev/null 2>&1 && test -d /opt/android-sdk/platforms/android-36.1
+      interval: 60s
+      timeout: 60s
+      retries: 3
+      start_period: 90s
+    labels:
+      base44.project: "Arrow Puzzle"
+      base44.kind: "worker"
+
+  shots:
+    build:
+      context: .
+      dockerfile: .base44/Dockerfile.android
+    working_dir: /workspace
+    restart: on-failure
+    environment:
+      - BASE44_PREVIEW_MODE
+      - GRADLE_USER_HOME=/root/.gradle
+      - ANDROID_HOME=/opt/android-sdk
+      - ANDROID_SDK_ROOT=/opt/android-sdk
+      - PREVIEW_SHOTS_DIR=/workspace/.base44/preview/shots
+      - PREVIEW_APK_DIR=/workspace/.base44/preview/apk
+    volumes:
+      - .:/workspace
+      - gradle-cache:/root/.gradle
+      - android-cache:/root/.android
+    depends_on:
+      android:
+        condition: service_healthy
+    # Renders the real screens (Robolectric/Roborazzi) and builds the installable APK.
+    command:
+      - sh
+      - -ec
+      - |
+        rm -f /tmp/preview-ready
+        mkdir -p "$$PREVIEW_SHOTS_DIR" "$$PREVIEW_APK_DIR"
+        gradle --no-daemon :app:testDebugUnitTest --tests "*PreviewScreenshotTest*" -Proborazzi.test.record=true
+        gradle --no-daemon :app:assembleDebug
+        cp app/build/outputs/apk/debug/app-debug.apk "$$PREVIEW_APK_DIR/arrow-puzzle-debug.apk"
+        touch /tmp/preview-ready
+        echo "preview artifacts ready"
+        # Stays up afterwards; re-render with
+        # `docker compose -f docker-compose.base44.yml restart shots`
+        exec sleep infinity
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -f /tmp/preview-ready && test -f "$$PREVIEW_APK_DIR/arrow-puzzle-debug.apk" && test -f "$$PREVIEW_SHOTS_DIR/03-lobby.png"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    labels:
+      base44.project: "Arrow Puzzle"
+      base44.kind: "worker"
+
+  preview:
+    image: nginx:alpine
+    restart: on-failure
+    ports:
+      - "3000:80"
+    volumes:
+      - ./.base44/preview:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    labels:
+      base44.project: "Arrow Puzzle"
+      base44.kind: "web"
+      base44.port: "3000"
+
+volumes:
+  gradle-cache:
+  android-cache:
